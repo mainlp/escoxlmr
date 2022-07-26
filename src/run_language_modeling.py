@@ -22,28 +22,18 @@ GPT and GPT-2 are fine-tuned using a causal language modeling (CLM) loss while B
 using a masked language modeling (MLM) loss.
 """
 
-import torch
 import logging
 import math
 import os
 from dataclasses import dataclass, field
-from typing import Optional, Any, Callable, Dict, List, NewType, Tuple
+from typing import Dict, List, Optional, Tuple
 
-from transformers import (
-    CONFIG_MAPPING,
-    MODEL_WITH_LM_HEAD_MAPPING,
-    AutoConfig,
-    AutoModelWithLMHead,
-    AutoTokenizer,
-    DataCollatorForLanguageModeling,
-    HfArgumentParser,
-    LineByLineTextDataset,
-    PreTrainedTokenizer,
-    TextDataset,
-    Trainer,
-    TrainingArguments,
-    set_seed,
-)
+import torch
+from torch import nn
+from transformers import (AutoConfig, AutoModelForMaskedLM, AutoTokenizer, CONFIG_MAPPING,
+                          DataCollatorForLanguageModeling, HfArgumentParser, LineByLineTextDataset,
+                          MODEL_WITH_LM_HEAD_MAPPING, PreTrainedTokenizer, TextDataset, Trainer, TrainingArguments,
+                          set_seed)
 
 
 logger = logging.getLogger(__name__)
@@ -300,6 +290,31 @@ class DataCollatorForLanguageModeling:
         return inputs, labels
 
 
+@dataclass
+class CustomTrainer(Trainer):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.drp_relationship = nn.Linear(786, 3)
+
+    def compute_loss(self, model, inputs_mlm, inputs_drp, return_outputs=False):
+        labels_mlm = inputs_mlm.get("labels")
+        labels_drp = inputs_drp.get("labels")
+
+        # forward pass mlm
+        outputs_mlm = model(**inputs_mlm)
+        logits_mlm = outputs_mlm.get("logits")
+
+        # forward pass drp
+        logits_drp = self.drp_relationship(inputs_drp)
+
+        # compute custom loss (suppose one has 3 labels with different weights)
+        loss_fct = nn.CrossEntropyLoss()
+        loss_mlm = loss_fct(logits_mlm.view(-1, model.config.num_labels), labels_mlm.view(-1))
+        loss_drp = loss_fct(logits_drp.view(-1, 3), labels_drp.view(-1))
+
+        return (loss_mlm, outputs_mlm, loss_drp) if return_outputs else loss_mlm + loss_drp
+
+
 def get_dataset(args: DataTrainingArguments, tokenizer: PreTrainedTokenizer, evaluate=False):
     file_path = args.eval_data_file if evaluate else args.train_data_file
     if args.line_by_line:
@@ -384,7 +399,7 @@ def main():
                 )
 
     if model_args.model_name_or_path:
-        model = AutoModelWithLMHead.from_pretrained(
+        model = AutoModelForMaskedLM.from_pretrained(
                 model_args.model_name_or_path,
                 from_tf=bool(".ckpt" in model_args.model_name_or_path),
                 config=config,
@@ -392,7 +407,7 @@ def main():
                 )
     else:
         logger.info("Training new model from scratch")
-        model = AutoModelWithLMHead.from_config(config)
+        model = AutoModelForMaskedLM.from_config(config)
 
     model.resize_token_embeddings(len(tokenizer))
 
@@ -414,6 +429,9 @@ def main():
     train_dataset = get_dataset(data_args, tokenizer=tokenizer) if training_args.do_train else None
     eval_dataset = get_dataset(data_args, tokenizer=tokenizer, evaluate=True) if training_args.do_eval else None
 
+    print(train_dataset)
+    exit(1)
+
     ## token-level pre-training
     data_collator = DataCollatorForLanguageModeling(
             tokenizer=tokenizer, mlm=data_args.mlm, mlm_probability=data_args.mlm_probability
@@ -425,7 +443,17 @@ def main():
     #         )
 
     # Initialize our Trainer
-    trainer = Trainer(
+    # trainer = Trainer(
+    #         model=model,
+    #         args=training_args,
+    #         data_collator=data_collator,
+    #         train_dataset=train_dataset,
+    #         eval_dataset=eval_dataset,
+    #         prediction_loss_only=True,
+    #         )
+
+    # Custom Trainer
+    trainer = CustomTrainer(
             model=model,
             args=training_args,
             data_collator=data_collator,
