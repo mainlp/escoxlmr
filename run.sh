@@ -1,12 +1,12 @@
-python3 -m scripts.run_language_modeling --train_data_file resources/ai_domainlevel.txt \
-                                         --line_by_line \
-                                         --output_dir bert-tiny-test \
-                                         --model_type nreimers/BERT-Tiny_L-2_H-128_A-2 \
-                                         --tokenizer_name roberta-base \
-                                         --mlm \
-                                         --per_gpu_train_batch_size 16 \
-                                         --gradient_accumulation_steps 128  \
-                                         --model_name_or_path nreimers/BERT-Tiny_L-2_H-128_A-2 \
-                                         --do_train \
-                                         --max_steps 12500  \
-                                         --learning_rate 0.0005
+python3 run_language_modeling.py --train_data_file resources/ai_domainlevel.txt \
+                                 --line_by_line \
+                                 --output_dir bert-tiny-test \
+                                 --model_type nreimers/BERT-Tiny_L-2_H-128_A-2 \
+                                 --tokenizer_name nreimers/BERT-Tiny_L-2_H-128_A-2 \
+                                 --mlm \
+                                 --per_gpu_train_batch_size 16 \
+                                 --gradient_accumulation_steps 128  \
+                                 --model_name_or_path nreimers/BERT-Tiny_L-2_H-128_A-2 \
+                                 --do_train \
+                                 --max_steps 12500  \
+                                 --learning_rate 0.0005
