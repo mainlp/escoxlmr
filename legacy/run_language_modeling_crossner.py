@@ -411,7 +411,7 @@ def main():
 
     model.resize_token_embeddings(len(tokenizer))
 
-    if config.model_type in ["bert", "roberta", "distilbert", "camembert"] and not data_args.mlm:
+    if config.model_type in ["bert", "roberta", "distilbert", "camembert", "xlm-roberta-base"] and not data_args.mlm:
         raise ValueError(
                 "BERT and RoBERTa-like models do not have LM heads but masked LM heads. They must be run using the "
                 "--mlm "
@@ -428,9 +428,6 @@ def main():
 
     train_dataset = get_dataset(data_args, tokenizer=tokenizer) if training_args.do_train else None
     eval_dataset = get_dataset(data_args, tokenizer=tokenizer, evaluate=True) if training_args.do_eval else None
-
-    print(train_dataset)
-    exit(1)
 
     ## token-level pre-training
     data_collator = DataCollatorForLanguageModeling(
