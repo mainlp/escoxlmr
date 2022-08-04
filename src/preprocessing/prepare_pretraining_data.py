@@ -60,18 +60,20 @@ def main():
 
                 if data.get("must_skills"):
                     for must_skill in data["must_skills"]:
-                        tokens_must_skill = tokenizer(must_skill["description"].strip())
+                        must_skill_description = must_skill["description"].strip()
+                        tokens_must_skill = tokenizer(must_skill_description)
                         avg_len_descriptions += len(tokens_must_skill)
                         list_of_entities_and_descriptions.append({data["esco_code"]: f"{must_skill['title']} "
-                                                                                     f"{tokens_must_skill}"})
+                                                                                     f"{must_skill_description}"})
                         cnt_desc += 1
 
                 if data.get("opt_skills"):
                     for opt_skill in data["opt_skills"]:
-                        tokens_opt_skill = tokenizer(opt_skill["description"].strip())
+                        opt_skill_description = opt_skill["description"].strip()
+                        tokens_opt_skill = tokenizer(opt_skill_description)
                         avg_len_descriptions += len(tokens_opt_skill)
                         list_of_entities_and_descriptions.append({data["esco_code"]: f"{opt_skill['title']} "
-                                                                                     f"{tokens_opt_skill}"})
+                                                                                     f"{opt_skill_description}"})
                         cnt_desc += 1
 
             logging.info(f"current language: {lang}")
@@ -80,11 +82,10 @@ def main():
             logging.info(f"avg len must_skills: {avg_len_must_skills/cnt}")
             logging.info(f"avg len opt_skills: {avg_len_opt_skills/cnt}")
 
-            with open(f"resources/processed/processed_esco_descriptions_{lang}.json", "a+", encoding="utf-8") as fw:
+            with open(f"resources/processed/processed_esco_descriptions_all.json", "a+", encoding="utf-8") as fw:
                 for item in list_of_entities_and_descriptions:
                     fw.write(json.dumps(item, ensure_ascii=False))
-                    if not item == list_of_entities_and_descriptions[-1]:
-                        fw.write("\n")
+                    fw.write("\n")
 
 
 if __name__ == '__main__':
