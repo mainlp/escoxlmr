@@ -848,7 +848,7 @@ def main():
         trainer.log_metrics("eval", metrics)
         trainer.save_metrics("eval", metrics)
 
-    kwargs = {"finetuned_from": model_args.model_name_or_path, "tasks": "fill-mask"}
+    kwargs = {"finetuned_from": model_args.model_name_or_path, "tasks": "fill-mask-and-erp"}
     if data_args.dataset_name is not None:
         kwargs["dataset_tags"] = data_args.dataset_name
         if data_args.dataset_config_name is not None:

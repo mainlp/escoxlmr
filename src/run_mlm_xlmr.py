@@ -754,7 +754,7 @@ def main():
         train_dataset = tokenized_datasets["train"]
         if data_args.max_train_samples is not None:
             max_train_samples = min(len(train_dataset), data_args.max_train_samples)
-            train_dataset = train_dataset.select(range(max_train_samples))
+            # train_dataset = train_dataset.select(range(max_train_samples))
 
     if training_args.do_eval:
         if "validation" not in tokenized_datasets:
@@ -812,6 +812,7 @@ def main():
             preprocess_logits_for_metrics=preprocess_logits_for_metrics if training_args.do_eval and not
             is_torch_tpu_available() else None,
             save_step=1000,
+            report_to="wandb"
             )
 
     # Training
@@ -851,7 +852,7 @@ def main():
         trainer.log_metrics("eval", metrics)
         trainer.save_metrics("eval", metrics)
 
-    kwargs = {"finetuned_from": model_args.model_name_or_path, "tasks": "fill-mask"}
+    kwargs = {"finetuned_from": model_args.model_name_or_path, "tasks": "fill-mask-and-erp"}
     if data_args.dataset_name is not None:
         kwargs["dataset_tags"] = data_args.dataset_name
         if data_args.dataset_config_name is not None:
