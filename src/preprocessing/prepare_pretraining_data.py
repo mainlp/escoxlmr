@@ -10,10 +10,14 @@ import logging
 from datetime import datetime
 
 
-logging.basicConfig(filename=f"logs/{datetime.now().strftime('%d_%m_%Y_%H:%M:%S')}_pretrain_data.log",
-                    filemode="w",
-                    format="%(asctime)s::%(name)s - %(levelname)s - %(message)s",
-                    level=logging.INFO)
+logging.basicConfig(format="%(asctime)s::%(name)s - %(levelname)s - %(message)s",
+                    level=logging.INFO,
+                    handlers=[
+                            logging.FileHandler(f"logs/"
+                                                f"{datetime.now().strftime('%d_%m_%Y_%H:%M:%S')}_prepare_data.log"),
+                            logging.StreamHandler()
+                            ]
+                    )
 
 
 def main():
