@@ -6,13 +6,20 @@
 
 import json
 import pyonmttok
+import logging
+from datetime import datetime
+
+
+logging.basicConfig(filename=f"logs/{datetime.now().strftime('%d_%m_%Y_%H:%M:%S')}_pretrain_data.log",
+                    filemode="w",
+                    format="%(asctime)s::%(name)s - %(levelname)s - %(message)s",
+                    level=logging.INFO)
 
 
 def main():
 
-    # langs = ["bg", "es", "cs", "da", "de", "et", "el", "en", "fr", "ga", "hr", "it", "lv", "lt", "hu", "mt", "nl",
-             # "pl", "pt", "ro", "sk", "sl", "fi", "sv", "is", "no", "ar"]
-    langs = ["en"]
+    langs = ["bg", "es", "cs", "da", "de", "et", "el", "en", "fr", "ga", "hr", "it", "lv", "lt", "hu", "mt", "nl",
+             "pl", "pt", "ro", "sk", "sl", "fi", "sv", "is", "no", "ar"]
     tokenizer = pyonmttok.Tokenizer("conservative", joiner_annotate=False)
 
     for lang in langs:
@@ -25,11 +32,13 @@ def main():
         avg_len_must_skills = 0
         avg_len_opt_skills = 0
 
-        with open(f"resources/esco_occupations_descriptions_{lang}.json", "r+", encoding='utf-8') as f:
+        with open(f"resources/esco_taxonomy/esco_occupations_descriptions_{lang}.json",
+                  mode="r+",
+                  encoding='utf-8') as f:
             for line in f:
-                data = json.loads(line)
-                data = data["description"].strip()
-                tokens = tokenizer(data)
+                data = json.loads(line, strict=False)
+                description = data["description"].strip()
+                tokens = tokenizer(description)
 
                 # gather statistics
                 avg_len_descriptions += len(tokens)
@@ -61,13 +70,13 @@ def main():
                                                                                      f"{data}"})
                         cnt_desc += 1
 
-            print(f"current language: {lang}")
-            print(f"total entities: {len(list_of_entities_and_descriptions)}")
-            print(f"avg len descriptions: {avg_len_descriptions/cnt_desc}")
-            print(f"avg len must_skills: {avg_len_must_skills/cnt}")
-            print(f"avg len opt_skills: {avg_len_opt_skills/cnt}")
+            logging.info(f"current language: {lang}")
+            logging.info(f"total entities: {len(list_of_entities_and_descriptions)}")
+            logging.info(f"avg len descriptions: {avg_len_descriptions/cnt_desc}")
+            logging.info(f"avg len must_skills: {avg_len_must_skills/cnt}")
+            logging.info(f"avg len opt_skills: {avg_len_opt_skills/cnt}")
 
-            with open("resources/processed_esco_descriptions_en.json", "a+") as fw:
+            with open(f"resources/processed/processed_esco_descriptions_{lang}.json", "a+") as fw:
                 for item in list_of_entities_and_descriptions:
                     fw.write(json.dumps(item))
                     if not item == list_of_entities_and_descriptions[-1]:
