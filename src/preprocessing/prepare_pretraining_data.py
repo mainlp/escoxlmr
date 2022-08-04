@@ -76,9 +76,9 @@ def main():
             logging.info(f"avg len must_skills: {avg_len_must_skills/cnt}")
             logging.info(f"avg len opt_skills: {avg_len_opt_skills/cnt}")
 
-            with open(f"resources/processed/processed_esco_descriptions_{lang}.json", "a+") as fw:
+            with open(f"resources/processed/processed_esco_descriptions_{lang}.json", "a+", encoding="utf-8") as fw:
                 for item in list_of_entities_and_descriptions:
-                    fw.write(json.dumps(item))
+                    fw.write(json.dumps(item, ensure_ascii=False))
                     if not item == list_of_entities_and_descriptions[-1]:
                         fw.write("\n")
 
