@@ -35,6 +35,7 @@ from typing import Optional, Tuple, Union
 import datasets
 import torch
 import transformers
+import wandb
 from datasets import load_dataset, load_metric
 from filelock import FileLock
 from torch import nn
@@ -51,6 +52,7 @@ from transformers.utils import send_example_telemetry  # check_min_version,
 from transformers.utils.versions import require_version
 
 require_version("datasets>=1.8.0", "To fix: pip install -r examples/pytorch/language-modeling/requirements.txt")
+wandb.init(project="esco-xlm-r", entity="jjzha")
 
 logger = logging.getLogger(__name__)
 MODEL_CONFIG_CLASSES = list(MODEL_FOR_MASKED_LM_MAPPING.keys())
