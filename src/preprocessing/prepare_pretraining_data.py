@@ -52,18 +52,18 @@ def main():
                 cnt += 1
                 cnt_desc += 1
 
-                list_of_entities_and_descriptions.append({data["esco_code"]: f"{data['pref_label']} {data}"})
+                list_of_entities_and_descriptions.append({data["esco_code"]: f"{data['pref_label']} {description}"})
 
                 if data.get("alt_label"):
                     for alt_label in data["alt_label"]:
-                        list_of_entities_and_descriptions.append({data["esco_code"]: f"{alt_label} {data}"})
+                        list_of_entities_and_descriptions.append({data["esco_code"]: f"{alt_label} {description}"})
 
                 if data.get("must_skills"):
                     for must_skill in data["must_skills"]:
                         tokens_must_skill = tokenizer(must_skill["description"].strip())
                         avg_len_descriptions += len(tokens_must_skill)
                         list_of_entities_and_descriptions.append({data["esco_code"]: f"{must_skill['title']} "
-                                                                                     f"{data}"})
+                                                                                     f"{tokens_must_skill}"})
                         cnt_desc += 1
 
                 if data.get("opt_skills"):
@@ -71,7 +71,7 @@ def main():
                         tokens_opt_skill = tokenizer(opt_skill["description"].strip())
                         avg_len_descriptions += len(tokens_opt_skill)
                         list_of_entities_and_descriptions.append({data["esco_code"]: f"{opt_skill['title']} "
-                                                                                     f"{data}"})
+                                                                                     f"{tokens_opt_skill}"})
                         cnt_desc += 1
 
             logging.info(f"current language: {lang}")
