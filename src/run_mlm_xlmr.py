@@ -21,17 +21,10 @@ https://huggingface.co/models?filter=fill-mask
 """
 # You can also adapt this script on your own masked language modeling task. Pointers for this are left as comments.
 
-import json
 import logging
 import math
 import os
 import sys
-import time
-from collections import defaultdict
-from dataclasses import dataclass, field
-from itertools import chain
-from typing import Optional, Tuple, Union
-from sklearn.metrics import accuracy_score
 from dataclasses import dataclass, field
 from itertools import chain
 from typing import Optional, Tuple, Union
@@ -41,6 +34,7 @@ import torch
 import transformers
 # import wandb
 from datasets import load_dataset, load_metric
+from sklearn.metrics import accuracy_score
 from torch import nn
 from torch.nn import CrossEntropyLoss
 from transformers import (AutoConfig, AutoModelForPreTraining, AutoTokenizer, CONFIG_MAPPING,
