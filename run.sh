@@ -1,11 +1,17 @@
-python3 src/run_mlm_xlmr.py --train_file resources/dummy.txt \
+python3 src/run_mlm_xlmr.py --train_file resources/esco_features.json \
                             --line_by_line \
                             --output_dir xlm-test \
                             --model_type xlm-roberta-large \
                             --tokenizer_name xlm-roberta-large \
-                            --per_device_train_batch_size 64 \
-                            --gradient_accumulation_steps 128  \
+                            --per_device_train_batch_size 4 \
+                            --gradient_accumulation_steps 16  \
+                            --gradient_checkpointing \
                             --model_name_or_path xlm-roberta-large \
+                            --tf32 1 \
                             --do_train \
-                            --max_steps 12500  \
-                            --learning_rate 0.0005
+                            --max_steps 500000  \
+                            --save_steps 2000 \
+                            --learning_rate 0.0005 \
+                            --prediction_loss_only \
+                            --logging_steps 500 \
+                            --save_total_limit 5
