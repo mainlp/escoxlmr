@@ -5,22 +5,148 @@
 # @Time:        27/07/2022 11.36
 
 import json
-import pyonmttok
 import logging
-from datetime import datetime
+import os
+import pickle
+import random
+import time
+from collections import defaultdict
+
+import pyonmttok
+from filelock import FileLock
+from torch.utils.data import Dataset
+from transformers import PreTrainedTokenizer
+import sys
+
+logger = logging.getLogger(__name__)
 
 
-logging.basicConfig(format="%(asctime)s::%(name)s - %(levelname)s - %(message)s",
-                    level=logging.INFO,
-                    handlers=[
-                            logging.FileHandler(f"logs/"
-                                                f"{datetime.now().strftime('%d_%m_%Y_%H:%M:%S')}_prepare_data.log"),
-                            logging.StreamHandler()
-                            ]
-                    )
+class TextDatasetForEscoRelationPrediction(Dataset):
+    def __init__(
+            self,
+            tokenizer: str,
+            file_path: str,
+            ):
+
+        if not os.path.isfile(file_path):
+            raise ValueError(f"Input file path {file_path} not found")
+
+        directory, filename = os.path.split(file_path)
+
+        self.tokenizer = PreTrainedTokenizer.from_pretrained(tokenizer)
+
+        logger.info(f"Creating features from dataset file at {directory}")
+
+        # We create three data structures to account for the ESCO relation prediction objective
+        self.documents = []
+        self.linked = defaultdict(list)
+        self.contiguous = defaultdict(list)
+
+        with open(file_path, encoding="utf-8") as f:
+            for line in f:
+                try:
+                    line = json.loads(line)
+                    if not line:
+                        break
+                except json.decoder.JSONDecodeError:
+                    raise ValueError(
+                            f"There were some issues with decoding json block: {line}."
+                            )
+
+                description = line[list(line.keys())[0]]
+
+                if description:
+                    key = list(line.keys())[0]
+                    self.documents.append({key: description})
+                    self.linked[key].append(description)  # linked via esco code (same page)
+                    self.contiguous[key[:2]].append(description)  # same level 2 major group
+
+        logger.info(f"Creating examples from {len(self.documents)} documents.")
+        self.examples = []
+        self.create_examples_from_document()
+
+        start = time.time()
+        with open(f"{directory}/esco_features.json", "w+") as fw:
+            for example in self.examples:
+                fw.write(json.dumps(example))
+                fw.write("\n")
+
+        logger.info(
+                f"Saving features into file [took {time.time() - start:.3f} s]"
+                )
+
+    def create_examples_from_document(self):
+        # Here we make the strong assumption that a combination of two ESCO descriptions is <512 tokens. From our
+        # analysis it seems that the average number of tokens of one description is around 30 tokens.
+        i = 0
+
+        while i < len(self.documents):
+            segment = self.documents[i]
+            current_code = list(segment.keys())[0]
+
+            sent_a = segment[current_code]
+
+            current_rand_val = random.random()
+
+            # random
+            if current_rand_val < 0.33:
+                is_random_next = True
+                is_linked_next = False
+
+                # This should rarely go for more than one iteration for large
+                # corpora. However, just to be careful, we try to make sure that
+                # the random document is not the same as the document
+                # we're processing.
+                for _ in range(10):
+                    random_document_index = random.randint(0, len(self.documents) - 1)
+                    if self.documents[random_document_index] != segment:
+                        break
+
+                random_document_index = random.randint(0, len(self.documents) - 1)
+                random_document = self.documents[random_document_index]
+                random_document = list(random_document.values())[0]
+                sent_b = random_document
+
+            # linked
+            elif 0.33 <= current_rand_val < 0.66:
+                is_linked_next = True
+                is_random_next = False
+
+                random_document_index = random.randint(0, len(self.linked[current_code]) - 1)
+                linked_document = self.linked[current_code][random_document_index]
+                sent_b = linked_document
+
+            # contiguous
+            else:
+                is_random_next = False
+                is_linked_next = False
+                random_document_index = random.randint(0, len(self.contiguous[current_code[:2]]) - 1)
+                contiguous_document = self.contiguous[current_code[:2]][random_document_index]
+                sent_b = contiguous_document
+
+            # add labels for erp objective
+            if is_random_next:
+                label = 0
+            elif is_linked_next:
+                label = 1
+            else:
+                label = 2
+
+            example = {
+                    "data": f"{sent_a} [SEP] {sent_b}",
+                    "drp_label": label
+                    }
+
+            self.examples.append(example)
+
+            i += 1
 
 
 def main():
+
+    if not os.path.isfile(f"{sys.argv[1]}/esco_features.json"):
+        TextDatasetForEscoRelationPrediction(tokenizer=sys.argv[2], file_path=sys.argv[1])
+        exit(1)
 
     langs = ["bg", "es", "cs", "da", "de", "et", "el", "en", "fr", "ga", "hr", "it", "lv", "lt", "hu", "mt", "nl",
              "pl", "pt", "ro", "sk", "sl", "fi", "sv", "is", "no", "ar"]
@@ -74,11 +200,11 @@ def main():
                                                                                      f"{tokens_opt_skill}"})
                         cnt_desc += 1
 
-            logging.info(f"current language: {lang}")
-            logging.info(f"total entities: {len(list_of_entities_and_descriptions)}")
-            logging.info(f"avg len descriptions: {avg_len_descriptions/cnt_desc}")
-            logging.info(f"avg len must_skills: {avg_len_must_skills/cnt}")
-            logging.info(f"avg len opt_skills: {avg_len_opt_skills/cnt}")
+            logger.info(f"current language: {lang}")
+            logger.info(f"total entities: {len(list_of_entities_and_descriptions)}")
+            logger.info(f"avg len descriptions: {avg_len_descriptions / cnt_desc}")
+            logger.info(f"avg len must_skills: {avg_len_must_skills / cnt}")
+            logger.info(f"avg len opt_skills: {avg_len_opt_skills / cnt}")
 
             with open(f"resources/processed/processed_esco_descriptions_{lang}.json", "a+", encoding="utf-8") as fw:
                 for item in list_of_entities_and_descriptions:
