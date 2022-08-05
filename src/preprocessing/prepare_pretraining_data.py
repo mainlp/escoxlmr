@@ -15,7 +15,7 @@ from collections import defaultdict
 import pyonmttok
 from filelock import FileLock
 from torch.utils.data import Dataset
-from transformers import PreTrainedTokenizer
+from transformers import PreTrainedTokenizer, AutoTokenizer
 import sys
 
 logger = logging.getLogger(__name__)
@@ -24,7 +24,6 @@ logger = logging.getLogger(__name__)
 class TextDatasetForEscoRelationPrediction(Dataset):
     def __init__(
             self,
-            tokenizer: str,
             file_path: str,
             ):
 
@@ -32,8 +31,6 @@ class TextDatasetForEscoRelationPrediction(Dataset):
             raise ValueError(f"Input file path {file_path} not found")
 
         directory, filename = os.path.split(file_path)
-
-        self.tokenizer = PreTrainedTokenizer.from_pretrained(tokenizer)
 
         logger.info(f"Creating features from dataset file at {directory}")
 
@@ -66,9 +63,9 @@ class TextDatasetForEscoRelationPrediction(Dataset):
         self.create_examples_from_document()
 
         start = time.time()
-        with open(f"{directory}/esco_features.json", "w+") as fw:
+        with open(f"{directory}/esco_features.json", "w+", encoding="utf-8") as fw:
             for example in self.examples:
-                fw.write(json.dumps(example))
+                fw.write(json.dumps(example, ensure_ascii=False))
                 fw.write("\n")
 
         logger.info(
@@ -145,7 +142,7 @@ class TextDatasetForEscoRelationPrediction(Dataset):
 def main():
 
     if not os.path.isfile(f"{sys.argv[1]}/esco_features.json"):
-        TextDatasetForEscoRelationPrediction(tokenizer=sys.argv[3], file_path=sys.argv[2])
+        TextDatasetForEscoRelationPrediction(file_path=sys.argv[1])
         exit(1)
 
     langs = ["bg", "es", "cs", "da", "de", "et", "el", "en", "fr", "ga", "hr", "it", "lv", "lt", "hu", "mt", "nl",
