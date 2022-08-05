@@ -21,6 +21,7 @@ https://huggingface.co/models?filter=fill-mask
 """
 # You can also adapt this script on your own masked language modeling task. Pointers for this are left as comments.
 
+import json
 import logging
 import math
 import os
@@ -28,12 +29,11 @@ import pickle
 import random
 import sys
 import time
+from collections import defaultdict
 from dataclasses import dataclass, field
 from itertools import chain
 from typing import Optional, Tuple, Union
-
-from collections import defaultdict
-import json
+from sklearn.metrics import accuracy_score
 import datasets
 import torch
 import transformers
@@ -150,7 +150,7 @@ class DataTrainingArguments:
             default=False, metadata={"help": "Overwrite the cached training and evaluation sets"}
             )
     validation_split_percentage: Optional[int] = field(
-            default=5,
+            default=1,
             metadata={
                     "help": "The percentage of the train set used as validation set in case there's no validation split"
                     },
@@ -266,8 +266,8 @@ class RobertaForPretraining(RobertaPreTrainedModel):
             inputs_embeds: Optional[torch.Tensor] = None,
             labels: Optional[torch.Tensor] = None,
             drp_label: Optional[torch.Tensor] = None,
-            output_attentions: Optional[bool] = None,
-            output_hidden_states: Optional[bool] = None,
+            # output_attentions: Optional[bool] = None,
+            # output_hidden_states: Optional[bool] = None,
             return_dict: Optional[bool] = None,
             ) -> Union[Tuple[torch.Tensor], BertForPreTrainingOutput]:
         r"""
@@ -289,9 +289,6 @@ class RobertaForPretraining(RobertaPreTrainedModel):
                 position_ids=position_ids,
                 head_mask=head_mask,
                 inputs_embeds=inputs_embeds,
-                output_attentions=output_attentions,
-                output_hidden_states=output_hidden_states,
-                return_dict=return_dict,
                 )
 
         sequence_output, pooled_output = outputs[:2]
@@ -621,21 +618,35 @@ def main():
             if isinstance(logits, tuple):
                 # Depending on the model and config, logits may contain extra tensors,
                 # like past_key_values, but logits always come first
-                logits = logits[0]
-            return logits.argmax(dim=-1)
+                logits_mlm, logits_erp = logits[0], logits[1]
+            return logits_mlm.argmax(dim=-1), logits_erp.argmax(dim=-1)
 
         metric = load_metric("accuracy")
 
         def compute_metrics(eval_preds):
-            preds, labels = eval_preds
+            (preds_mlm, preds_erp), (labels_mlm, labels_erp) = eval_preds
             # preds have the same shape as the labels, after the argmax(-1) has been calculated
             # by preprocess_logits_for_metrics
-            labels = labels.reshape(-1)
-            preds = preds.reshape(-1)
-            mask = labels != -100
-            labels = labels[mask]
-            preds = preds[mask]
-            return metric.compute(predictions=preds, references=labels)
+
+            labels_mlm = labels_mlm.reshape(-1)
+            preds_mlm = preds_mlm.reshape(-1)
+
+            labels_erp = labels_erp.reshape(-1)
+            preds_erp = preds_erp.reshape(-1)
+
+            mask = labels_mlm != -100
+            labels_mlm = labels_mlm[mask]
+            preds_mlm = preds_mlm[mask]
+
+            logger.info(f"Labels MLM: {labels_mlm}")
+            logger.info(f"Preds MLM: {preds_mlm}")
+            logger.info(f"Labels ERP: {labels_erp}")
+            logger.info(f"Preds ERP: {preds_erp}")
+
+            eval_metric = metric.compute(predictions=preds_mlm, references=labels_mlm)
+            eval_metric["accuracy_erp"] = accuracy_score(y_true=labels_erp, y_pred=preds_erp)
+
+            return eval_metric
 
     # Data collator
     # This one will take care of randomly masking the tokens.
@@ -655,7 +666,8 @@ def main():
             tokenizer=tokenizer,
             data_collator=data_collator,
             compute_metrics=compute_metrics if training_args.do_eval and not is_torch_tpu_available() else None,
-            preprocess_logits_for_metrics=preprocess_logits_for_metrics if training_args.do_eval and not is_torch_tpu_available() else None,
+            preprocess_logits_for_metrics=preprocess_logits_for_metrics if training_args.do_eval and not
+            is_torch_tpu_available() else None,
             )
 
     # Training

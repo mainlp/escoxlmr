@@ -130,7 +130,7 @@ class TextDatasetForEscoRelationPrediction(Dataset):
                 label = 2
 
             example = {
-                    "data": f"{sent_a} [SEP] {sent_b}",
+                    "data": f"{sent_a} </s> {sent_b}", # sep token for RoBERTa
                     "drp_label": label
                     }
 
