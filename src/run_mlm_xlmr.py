@@ -24,28 +24,21 @@ https://huggingface.co/models?filter=fill-mask
 import logging
 import math
 import os
-import pickle
-import random
 import sys
-import time
 from dataclasses import dataclass, field
 from itertools import chain
 from typing import Optional, Tuple, Union
 
-from collections import defaultdict
-import json
 import datasets
 import torch
 import transformers
 # import wandb
 from datasets import load_dataset, load_metric
-from filelock import FileLock
 from torch import nn
 from torch.nn import CrossEntropyLoss
-from torch.utils.data import Dataset
 from transformers import (AutoConfig, AutoModelForPreTraining, AutoTokenizer, CONFIG_MAPPING,
                           DataCollatorForLanguageModeling, HfArgumentParser, MODEL_FOR_MASKED_LM_MAPPING,
-                          PreTrainedTokenizer, RobertaModel, Trainer, TrainingArguments, is_torch_tpu_available,
+                          RobertaModel, Trainer, TrainingArguments, is_torch_tpu_available,
                           set_seed)
 from transformers.models.bert.modeling_bert import (BertForPreTrainingOutput)
 from transformers.models.roberta.modeling_roberta import RobertaLMHead, RobertaPreTrainedModel
@@ -655,7 +648,8 @@ def main():
             tokenizer=tokenizer,
             data_collator=data_collator,
             compute_metrics=compute_metrics if training_args.do_eval and not is_torch_tpu_available() else None,
-            preprocess_logits_for_metrics=preprocess_logits_for_metrics if training_args.do_eval and not is_torch_tpu_available() else None,
+            preprocess_logits_for_metrics=preprocess_logits_for_metrics if training_args.do_eval and not
+            is_torch_tpu_available() else None,
             )
 
     # Training
