@@ -32,10 +32,12 @@ from dataclasses import dataclass, field
 from itertools import chain
 from typing import Optional, Tuple, Union
 
+from collections import defaultdict
+import json
 import datasets
 import torch
 import transformers
-import wandb
+# import wandb
 from datasets import load_dataset, load_metric
 from filelock import FileLock
 from torch import nn
@@ -52,11 +54,14 @@ from transformers.utils import send_example_telemetry  # check_min_version,
 from transformers.utils.versions import require_version
 
 require_version("datasets>=1.8.0", "To fix: pip install -r examples/pytorch/language-modeling/requirements.txt")
-wandb.init(project="esco-xlm-r", entity="jjzha")
+# wandb.init(project="esco-xlm-r", entity="jjzha")
+os.environ["WANDB_DISABLED"] = "true"
+torch.backends.cuda.matmul.allow_tf32 = True
 
 logger = logging.getLogger(__name__)
 MODEL_CONFIG_CLASSES = list(MODEL_FOR_MASKED_LM_MAPPING.keys())
 MODEL_TYPES = tuple(conf.model_type for conf in MODEL_CONFIG_CLASSES)
+os.environ['CUDA_LAUNCH_BLOCKING'] = "1"
 
 
 @dataclass
@@ -215,162 +220,6 @@ class DataTrainingArguments:
                     raise ValueError("`validation_file` should be a csv, a json or a txt file.")
 
 
-@dataclass
-class TextDatasetForNextSentencePrediction(Dataset):
-    def __init__(
-            self,
-            tokenizer: PreTrainedTokenizer,
-            file_path: str,
-            block_size: int,
-            overwrite_cache=False,
-            ):
-
-        if not os.path.isfile(file_path):
-            raise ValueError(f"Input file path {file_path} not found")
-
-        directory, filename = os.path.split(file_path)
-        cached_features_file = os.path.join(
-                directory,
-                f"cached_drp_{tokenizer.__class__.__name__}_{block_size}_{filename}",
-                )
-
-        self.tokenizer = tokenizer
-
-        # Make sure only the first process in distributed training processes the dataset,
-        # and the others will use the cache.
-        lock_path = cached_features_file + ".lock"
-
-        with FileLock(lock_path):
-            if os.path.exists(cached_features_file) and not overwrite_cache:
-                start = time.time()
-                with open(cached_features_file, "rb") as handle:
-                    self.examples = pickle.load(handle)
-                logger.info(
-                        f"Loading features from cached file {cached_features_file} [took %.3f s]", time.time() - start
-                        )
-            else:
-                logger.info(f"Creating features from dataset file at {directory}")
-
-                # We create three data structures to account for the ESCO relation prediction objective
-                self.documents = []
-                self.linked = defaultdict(list)
-                self.contiguous = defaultdict(list)
-
-                with open(file_path, encoding="utf-8") as f:
-                    for line in f:
-                        line = json.loads(line)
-                        if not line:
-                            break
-
-                        description = line[list(line.keys())[0]]
-                        tokens = tokenizer.tokenize(description)
-                        tokens = tokenizer.convert_tokens_to_ids(tokens)
-
-                        if tokens:
-                            key = list(line.keys())[0]
-                            self.documents.append({key: tokens})
-                            self.linked[key].append(tokens)  # linked via esco code (same page)
-                            self.contiguous[key].append(tokens)  # same level 2 major group
-
-                logger.info(f"Creating examples from {len(self.documents)} documents.")
-                self.examples = []
-                self.create_examples_from_document(block_size)
-
-                start = time.time()
-                with open(cached_features_file, "wb") as handle:
-                    pickle.dump(self.examples, handle, protocol=pickle.HIGHEST_PROTOCOL)
-                logger.info(
-                        f"Saving features into cached file {cached_features_file} [took {time.time() - start:.3f} s]"
-                        )
-
-    def create_examples_from_document(self):
-        # Here we make the strong assumption that a combination of two ESCO descriptions is <512 tokens. From our
-        # analysis it seems that the average number of tokens of one description is around 30 tokens.
-        i = 0
-
-        while i < len(self.documents):
-            segment = self.documents[i]
-            current_code = list(segment.keys())[0]
-
-            tokens_a = []
-            tokens_a.extend(list(segment.values())[0])
-
-            tokens_b = []
-
-            current_rand_val = random.random()
-
-            # random
-            if current_rand_val < 0.33:
-                is_random_next = True
-                is_linked_next = False
-
-                # This should rarely go for more than one iteration for large
-                # corpora. However, just to be careful, we try to make sure that
-                # the random document is not the same as the document
-                # we're processing.
-                for _ in range(10):
-                    random_document_index = random.randint(0, len(self.documents) - 1)
-                    if self.documents[random_document_index] != segment:
-                        break
-
-                random_document_index = random.randint(0, len(self.documents) - 1)
-                random_document = self.documents[random_document_index]
-                random_document = list(random_document.values())[0]
-                tokens_b.extend(random_document)
-
-            # linked
-            elif 0.33 <= current_rand_val < 0.66:
-                is_linked_next = True
-                is_random_next = False
-
-                random_document_index = random.randint(0, len(self.linked[current_code]) - 1)
-                linked_document = self.linked[current_code][random_document_index]
-                tokens_b.extend(linked_document)
-
-            # contiguous
-            else:
-                is_random_next = False
-                is_linked_next = False
-                random_document_index = random.randint(0, len(self.contiguous[current_code[:2]]) - 1)
-                contiguous_document = self.contiguous[current_code[:2]][random_document_index]
-                tokens_b.extend(contiguous_document)
-
-            # check if there is even a description
-            if not (len(tokens_a) >= 1):
-                raise ValueError(f"Length of sequence a is {len(tokens_a)} which must be no less than 1")
-            if not (len(tokens_b) >= 1):
-                raise ValueError(f"Length of sequence b is {len(tokens_b)} which must be no less than 1")
-
-            # add special tokens
-            input_ids = self.tokenizer.build_inputs_with_special_tokens(tokens_a, tokens_b)
-            # add token type ids, 0 for sentence a, 1 for sentence b
-            token_type_ids = self.tokenizer.create_token_type_ids_from_sequences(tokens_a, tokens_b)
-
-            # add labels for erp objective
-            if is_random_next:
-                label = 0
-            elif is_linked_next:
-                label = 1
-            else:
-                label = 2
-
-            example = {
-                    "input_ids": torch.tensor(input_ids, dtype=torch.long),
-                    "token_type_ids": torch.tensor(token_type_ids, dtype=torch.long),
-                    "drp_label": torch.tensor(label, dtype=torch.long),
-                    }
-
-            self.examples.append(example)
-
-            i += 1
-
-    def __len__(self):
-        return len(self.examples)
-
-    def __getitem__(self, i):
-        return self.examples[i]
-
-
 class CustomXLMPreTrainingHeads(nn.Module):
     def __init__(self, config):
         super().__init__()
@@ -416,7 +265,7 @@ class RobertaForPretraining(RobertaPreTrainedModel):
             head_mask: Optional[torch.Tensor] = None,
             inputs_embeds: Optional[torch.Tensor] = None,
             labels: Optional[torch.Tensor] = None,
-            next_sentence_label: Optional[torch.Tensor] = None,
+            drp_label: Optional[torch.Tensor] = None,
             output_attentions: Optional[bool] = None,
             output_hidden_states: Optional[bool] = None,
             return_dict: Optional[bool] = None,
@@ -429,6 +278,8 @@ class RobertaForPretraining(RobertaPreTrainedModel):
         kwargs (:obj:`Dict[str, any]`, optional, defaults to `{}`):
             Used to hide legacy arguments that have been deprecated.
         """
+        # return_dict = return_dict if return_dict is not None else self.config.use_return_dict
+
         return_dict = return_dict if return_dict is not None else self.config.use_return_dict
 
         outputs = self.roberta(
@@ -448,10 +299,10 @@ class RobertaForPretraining(RobertaPreTrainedModel):
 
         total_loss = None
 
-        if labels is not None and next_sentence_label is not None:
+        if labels is not None and drp_label is not None:
             loss_fct = CrossEntropyLoss()
             masked_lm_loss = loss_fct(prediction_scores.view(-1, self.config.vocab_size), labels.view(-1))
-            next_sentence_loss = loss_fct(seq_relationship_score.view(-1, 3), next_sentence_label.view(-1))
+            next_sentence_loss = loss_fct(seq_relationship_score.view(-1, 3), drp_label.view(-1))
             total_loss = masked_lm_loss + next_sentence_loss
 
         if not return_dict:
@@ -756,7 +607,7 @@ def main():
         train_dataset = tokenized_datasets["train"]
         if data_args.max_train_samples is not None:
             max_train_samples = min(len(train_dataset), data_args.max_train_samples)
-            # train_dataset = train_dataset.select(range(max_train_samples))
+            train_dataset = train_dataset.select(range(max_train_samples))
 
     if training_args.do_eval:
         if "validation" not in tokenized_datasets:
@@ -795,13 +646,6 @@ def main():
             pad_to_multiple_of=8 if pad_to_multiple_of_8 else None,
             )
 
-    train_dataset = TextDatasetForNextSentencePrediction(
-            tokenizer=tokenizer,
-            file_path='resources/dummy.txt',
-            overwrite_cache=True,
-            block_size=512,
-            )
-
     # Initialize our Trainer
     trainer = Trainer(
             model=model,
@@ -811,10 +655,7 @@ def main():
             tokenizer=tokenizer,
             data_collator=data_collator,
             compute_metrics=compute_metrics if training_args.do_eval and not is_torch_tpu_available() else None,
-            preprocess_logits_for_metrics=preprocess_logits_for_metrics if training_args.do_eval and not
-            is_torch_tpu_available() else None,
-            save_step=1000,
-            report_to="wandb"
+            preprocess_logits_for_metrics=preprocess_logits_for_metrics if training_args.do_eval and not is_torch_tpu_available() else None,
             )
 
     # Training
