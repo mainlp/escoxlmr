@@ -7,16 +7,13 @@
 import json
 import logging
 import os
-import pickle
 import random
+import sys
 import time
 from collections import defaultdict
 
 import pyonmttok
-from filelock import FileLock
 from torch.utils.data import Dataset
-from transformers import PreTrainedTokenizer, AutoTokenizer
-import sys
 
 logger = logging.getLogger(__name__)
 
