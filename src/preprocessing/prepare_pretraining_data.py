@@ -145,7 +145,7 @@ class TextDatasetForEscoRelationPrediction(Dataset):
 def main():
 
     if not os.path.isfile(f"{sys.argv[1]}/esco_features.json"):
-        TextDatasetForEscoRelationPrediction(tokenizer=sys.argv[2], file_path=sys.argv[1])
+        TextDatasetForEscoRelationPrediction(tokenizer=sys.argv[3], file_path=sys.argv[2])
         exit(1)
 
     langs = ["bg", "es", "cs", "da", "de", "et", "el", "en", "fr", "ga", "hr", "it", "lv", "lt", "hu", "mt", "nl",
