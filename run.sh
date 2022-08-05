@@ -9,9 +9,9 @@ python3 src/run_mlm_xlmr.py --train_file resources/esco_features.json \
                             --model_name_or_path xlm-roberta-large \
                             --tf32 1 \
                             --do_train \
-                            --max_steps 500000  \
+                            --max_steps 200000  \
                             --save_steps 2000 \
                             --learning_rate 0.0005 \
                             --prediction_loss_only \
-                            --logging_steps 500 \
+                            --logging_steps 100 \
                             --save_total_limit 5
