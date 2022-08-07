@@ -15,7 +15,11 @@ from collections import defaultdict
 import pyonmttok
 from torch.utils.data import Dataset
 
-logger = logging.getLogger(__name__)
+logging.basicConfig(
+        format="%(asctime)s - %(levelname)s - %(name)s - %(message)s",
+        datefmt="%m/%d/%Y %H:%M:%S",
+        level=logging.INFO
+        )
 
 
 class TextDatasetForEscoRelationPrediction(Dataset):
@@ -29,7 +33,7 @@ class TextDatasetForEscoRelationPrediction(Dataset):
 
         directory, filename = os.path.split(file_path)
 
-        logger.info(f"Creating features from dataset file at {directory}")
+        logging.info(f"Creating features from dataset file at {directory}")
 
         # We create three data structures to account for the ESCO relation prediction objective
         self.documents = []
@@ -55,7 +59,7 @@ class TextDatasetForEscoRelationPrediction(Dataset):
                     self.linked[key].append(description)  # linked via esco code (same page)
                     self.contiguous[key[:2]].append(description)  # same level 2 major group
 
-        logger.info(f"Creating examples from {len(self.documents)} documents.")
+        logging.info(f"Creating examples from {len(self.documents)} documents.")
         self.examples = []
         self.create_examples_from_document()
 
@@ -65,7 +69,7 @@ class TextDatasetForEscoRelationPrediction(Dataset):
                 fw.write(json.dumps(example, ensure_ascii=False))
                 fw.write("\n")
 
-        logger.info(
+        logging.info(
                 f"Saving features into file [took {time.time() - start:.3f} s]"
                 )
 
@@ -127,7 +131,7 @@ class TextDatasetForEscoRelationPrediction(Dataset):
                 label = 2
 
             example = {
-                    "data": f"{sent_a} </s> {sent_b}", # sep token for RoBERTa
+                    "data": f"{sent_a}</s></s>{sent_b}",  # sep token for RoBERTa
                     "drp_label": label
                     }
 
@@ -142,70 +146,78 @@ def main():
         TextDatasetForEscoRelationPrediction(file_path=sys.argv[1])
         exit(1)
 
-    langs = ["bg", "es", "cs", "da", "de", "et", "el", "en", "fr", "ga", "hr", "it", "lv", "lt", "hu", "mt", "nl",
-             "pl", "pt", "ro", "sk", "sl", "fi", "sv", "is", "no", "ar"]
-    tokenizer = pyonmttok.Tokenizer("conservative", joiner_annotate=False)
+    else:
+        langs = ["bg", "es", "cs", "da", "de", "et", "el", "en", "fr", "ga", "hr", "it", "lv", "lt", "hu", "mt", "nl",
+                 "pl", "pt", "ro", "sk", "sl", "fi", "sv", "is", "no", "ar"]
+        tokenizer = pyonmttok.Tokenizer("conservative", joiner_annotate=False)
 
-    for lang in langs:
-        list_of_entities_and_descriptions = []
+        statistics = defaultdict(dict)
+        for lang in langs:
+            list_of_entities_and_descriptions = []
 
-        cnt = 0
-        cnt_desc = 0
-        avg_len_descriptions = 0
-        avg_len_alt_labels = 0
-        avg_len_must_skills = 0
-        avg_len_opt_skills = 0
+            cnt = 0
+            cnt_desc = 0
+            avg_len_descriptions = 0
+            avg_len_alt_labels = 0
+            avg_len_must_skills = 0
+            avg_len_opt_skills = 0
 
-        with open(f"resources/esco_taxonomy/esco_occupations_descriptions_{lang}.json",
-                  mode="r+",
-                  encoding='utf-8') as f:
-            for line in f:
-                data = json.loads(line, strict=False)
-                description = data["description"].strip()
-                tokens = tokenizer(description)
+            with open(f"resources/esco_taxonomy/esco_occupations_descriptions_{lang}.json",
+                      mode="r+",
+                      encoding='utf-8') as f:
+                for line in f:
+                    data = json.loads(line, strict=False)
+                    description = data["description"].strip()
+                    tokens = tokenizer(description)
 
-                # gather statistics
-                avg_len_descriptions += len(tokens)
-                avg_len_alt_labels += len(data["alt_label"] if data.get("alt_label") else [])
-                avg_len_must_skills += len(data["must_skills"] if data.get("must_skills") else [])
-                avg_len_opt_skills += len(data["opt_skills"] if data.get("opt_skills") else [])
-                cnt += 1
-                cnt_desc += 1
+                    # gather statistics
+                    avg_len_descriptions += len(tokens)
+                    avg_len_alt_labels += len(data["alt_label"] if data.get("alt_label") else [])
+                    avg_len_must_skills += len(data["must_skills"] if data.get("must_skills") else [])
+                    avg_len_opt_skills += len(data["opt_skills"] if data.get("opt_skills") else [])
+                    cnt += 1
+                    cnt_desc += 1
 
-                list_of_entities_and_descriptions.append({data["esco_code"]: f"{data['pref_label']} {description}"})
+                    list_of_entities_and_descriptions.append({data["esco_code"]: f"{data['pref_label']} {description}"})
 
-                if data.get("alt_label"):
-                    for alt_label in data["alt_label"]:
-                        list_of_entities_and_descriptions.append({data["esco_code"]: f"{alt_label} {description}"})
+                    if data.get("alt_label"):
+                        for alt_label in data["alt_label"]:
+                            list_of_entities_and_descriptions.append({data["esco_code"]: f"{alt_label} {description}"})
 
-                if data.get("must_skills"):
-                    for must_skill in data["must_skills"]:
-                        must_skill_description = must_skill["description"].strip()
-                        tokens_must_skill = tokenizer(must_skill_description)
-                        avg_len_descriptions += len(tokens_must_skill)
-                        list_of_entities_and_descriptions.append({data["esco_code"]: f"{must_skill['title']} "
-                                                                                     f"{must_skill_description}"})
-                        cnt_desc += 1
+                    if data.get("must_skills"):
+                        for must_skill in data["must_skills"]:
+                            must_skill_description = must_skill["description"].strip()
+                            tokens_must_skill = tokenizer(must_skill_description)
+                            avg_len_descriptions += len(tokens_must_skill)
+                            list_of_entities_and_descriptions.append({data["esco_code"]: f"{must_skill['title']} "
+                                                                                         f"{must_skill_description}"})
+                            cnt_desc += 1
 
-                if data.get("opt_skills"):
-                    for opt_skill in data["opt_skills"]:
-                        opt_skill_description = opt_skill["description"].strip()
-                        tokens_opt_skill = tokenizer(opt_skill_description)
-                        avg_len_descriptions += len(tokens_opt_skill)
-                        list_of_entities_and_descriptions.append({data["esco_code"]: f"{opt_skill['title']} "
-                                                                                     f"{opt_skill_description}"})
-                        cnt_desc += 1
+                    if data.get("opt_skills"):
+                        for opt_skill in data["opt_skills"]:
+                            opt_skill_description = opt_skill["description"].strip()
+                            tokens_opt_skill = tokenizer(opt_skill_description)
+                            avg_len_descriptions += len(tokens_opt_skill)
+                            list_of_entities_and_descriptions.append({data["esco_code"]: f"{opt_skill['title']} "
+                                                                                         f"{opt_skill_description}"})
+                            cnt_desc += 1
 
-            logger.info(f"current language: {lang}")
-            logger.info(f"total entities: {len(list_of_entities_and_descriptions)}")
-            logger.info(f"avg len descriptions: {avg_len_descriptions / cnt_desc}")
-            logger.info(f"avg len must_skills: {avg_len_must_skills / cnt}")
-            logger.info(f"avg len opt_skills: {avg_len_opt_skills / cnt}")
+                logging.info(f"current language: {lang}")
+                logging.info(f"total entities: {len(list_of_entities_and_descriptions)}")
+                logging.info(f"avg len descriptions: {avg_len_descriptions / cnt_desc}")
+                logging.info(f"avg len must_skills: {avg_len_must_skills / cnt}")
+                logging.info(f"avg len opt_skills: {avg_len_opt_skills / cnt}")
 
-            with open(f"resources/processed/processed_esco_descriptions_all.json", "a+", encoding="utf-8") as fw:
-                for item in list_of_entities_and_descriptions:
-                    fw.write(json.dumps(item, ensure_ascii=False))
-                    fw.write("\n")
+                statistics[lang] = {"instances": len(list_of_entities_and_descriptions),
+                                    "len_desc": {avg_len_descriptions / cnt_desc}}
+
+                with open(f"resources/esco_taxonomy/processed_esco_descriptions_all.json", "a+", encoding="utf-8") as\
+                        fw:
+                    for item in list_of_entities_and_descriptions:
+                        fw.write(json.dumps(item, ensure_ascii=False))
+                        fw.write("\n")
+
+        logging.info(statistics)
 
 
 if __name__ == '__main__':

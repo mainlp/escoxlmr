@@ -233,6 +233,7 @@ class CustomXLMPreTrainingHeads(nn.Module):
 
 
 class RobertaForPretraining(RobertaPreTrainedModel):
+    _keys_to_ignore_on_save = [r"lm_drp_head.decoder.weight", r"lm_drp_head.decoder.bias"]
     _keys_to_ignore_on_load_missing = [r"position_ids", r"lm_drp_head.decoder.bias"]
     _keys_to_ignore_on_load_unexpected = [r"pooler"]
 
@@ -247,6 +248,9 @@ class RobertaForPretraining(RobertaPreTrainedModel):
 
         self.roberta = RobertaModel(config)
         self.lm_drp_head = CustomXLMPreTrainingHeads(config)
+
+        # The LM head weights require special treatment only when they are tied with the word embeddings
+        self.update_keys_to_ignore(config, ["lm_drp_head.decoder.weight"])
 
         self.init_weights()
 
@@ -264,10 +268,12 @@ class RobertaForPretraining(RobertaPreTrainedModel):
             position_ids: Optional[torch.Tensor] = None,
             head_mask: Optional[torch.Tensor] = None,
             inputs_embeds: Optional[torch.Tensor] = None,
+            encoder_hidden_states: Optional[torch.FloatTensor] = None,
+            encoder_attention_mask: Optional[torch.FloatTensor] = None,
             labels: Optional[torch.Tensor] = None,
             drp_label: Optional[torch.Tensor] = None,
-            # output_attentions: Optional[bool] = None,
-            # output_hidden_states: Optional[bool] = None,
+            output_attentions: Optional[bool] = None,
+            output_hidden_states: Optional[bool] = None,
             return_dict: Optional[bool] = None,
             ) -> Union[Tuple[torch.Tensor], BertForPreTrainingOutput]:
         r"""
@@ -289,6 +295,12 @@ class RobertaForPretraining(RobertaPreTrainedModel):
                 position_ids=position_ids,
                 head_mask=head_mask,
                 inputs_embeds=inputs_embeds,
+                encoder_hidden_states=encoder_hidden_states,
+                encoder_attention_mask=encoder_attention_mask,
+                output_attentions=output_attentions,
+                output_hidden_states=output_hidden_states,
+                return_dict=return_dict,
+
                 )
 
         sequence_output, pooled_output = outputs[:2]
@@ -638,10 +650,10 @@ def main():
             labels_mlm = labels_mlm[mask]
             preds_mlm = preds_mlm[mask]
 
-            logger.info(f"Labels MLM: {labels_mlm}")
-            logger.info(f"Preds MLM: {preds_mlm}")
-            logger.info(f"Labels ERP: {labels_erp}")
-            logger.info(f"Preds ERP: {preds_erp}")
+            logger.info(f"Labels MLM: {labels_mlm} ({labels_mlm.shape})")
+            logger.info(f"Preds MLM: {preds_mlm} ({preds_mlm.shape})")
+            logger.info(f"Labels ERP: {labels_erp} ({labels_erp.shape})")
+            logger.info(f"Preds ERP: {preds_erp} ({preds_erp.shape})")
 
             eval_metric = metric.compute(predictions=preds_mlm, references=labels_mlm)
             eval_metric["accuracy_erp"] = accuracy_score(y_true=labels_erp, y_pred=preds_erp)
