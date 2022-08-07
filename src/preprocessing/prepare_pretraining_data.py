@@ -155,6 +155,7 @@ def main():
         avg_len_alt_labels = 0
         avg_len_must_skills = 0
         avg_len_opt_skills = 0
+        len_descriptions = []
 
         with open(f"resources/esco_taxonomy/esco_occupations_descriptions_{lang}.json",
                   mode="r+",
@@ -166,6 +167,7 @@ def main():
 
                 # gather statistics
                 avg_len_descriptions += len(tokens)
+                len_descriptions.append(len(tokens))
                 avg_len_alt_labels += len(data["alt_label"] if data.get("alt_label") else [])
                 avg_len_must_skills += len(data["must_skills"] if data.get("must_skills") else [])
                 avg_len_opt_skills += len(data["opt_skills"] if data.get("opt_skills") else [])
