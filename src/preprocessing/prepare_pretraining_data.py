@@ -161,7 +161,7 @@ def main():
             avg_len_alt_labels = 0
             avg_len_must_skills = 0
             avg_len_opt_skills = 0
-        len_descriptions = []
+            len_descriptions = []
 
             with open(f"resources/esco_taxonomy/esco_occupations_descriptions_{lang}.json",
                       mode="r+",
@@ -219,7 +219,7 @@ def main():
                         fw.write(json.dumps(item, ensure_ascii=False))
                         fw.write("\n")
 
-        logging.info(statistics)
+            logging.info(statistics)
 
 
 if __name__ == '__main__':
