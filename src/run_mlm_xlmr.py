@@ -542,7 +542,7 @@ def main():
                     max_length=max_seq_length,
                     # We use this option because DataCollatorForLanguageModeling (see below) is more efficient when it
                     # receives the `special_tokens_mask`.
-                    return_special_tokens_mask=True,
+                    # return_special_tokens_mask=True,
                     )
 
         with training_args.main_process_first(desc="dataset map tokenization"):
@@ -559,7 +559,9 @@ def main():
         # We use `return_special_tokens_mask=True` because DataCollatorForLanguageModeling (see below) is more
         # efficient when it receives the `special_tokens_mask`.
         def tokenize_function(examples):
-            return tokenizer(examples[text_column_name], return_special_tokens_mask=True)
+            return tokenizer(examples[text_column_name],
+                             # return_special_tokens_mask=True,
+                             )
 
         with training_args.main_process_first(desc="dataset map tokenization"):
             tokenized_datasets = raw_datasets.map(
