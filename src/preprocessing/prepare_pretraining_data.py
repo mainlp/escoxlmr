@@ -1,7 +1,6 @@
 #!/usr/bin/env python
 # -*- coding:utf-8 -*-
 # @Filename:    prepare_pretraining_data.py
-# @Author:      mikz
 # @Time:        27/07/2022 11.36
 
 import json
@@ -38,7 +37,7 @@ class TextDatasetForEscoRelationPrediction(Dataset):
         # We create three data structures to account for the ESCO relation prediction objective
         self.documents = []
         self.linked = defaultdict(list)
-        self.contiguous = defaultdict(list)
+        self.grouped = defaultdict(list)
 
         with open(file_path, encoding="utf-8") as f:
             for line in f:
@@ -57,7 +56,7 @@ class TextDatasetForEscoRelationPrediction(Dataset):
                     key = list(line.keys())[0]
                     self.documents.append({key: description})
                     self.linked[key].append(description)  # linked via esco code (same page)
-                    self.contiguous[key[:2]].append(description)  # same level 2 major group
+                    self.grouped[key[:2]].append(description)  # same level 2 major group
 
         logging.info(f"Creating examples from {len(self.documents)} documents.")
         self.examples = []
@@ -114,13 +113,13 @@ class TextDatasetForEscoRelationPrediction(Dataset):
                 linked_document = self.linked[current_code][random_document_index]
                 sent_b = linked_document
 
-            # contiguous
+            # grouped
             else:
                 is_random_next = False
                 is_linked_next = False
-                random_document_index = random.randint(0, len(self.contiguous[current_code[:2]]) - 1)
-                contiguous_document = self.contiguous[current_code[:2]][random_document_index]
-                sent_b = contiguous_document
+                random_document_index = random.randint(0, len(self.grouped[current_code[:2]]) - 1)
+                grouped_document = self.grouped[current_code[:2]][random_document_index]
+                sent_b = grouped_document
 
             # add labels for erp objective
             if is_random_next:

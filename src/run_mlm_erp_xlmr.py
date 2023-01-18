@@ -214,6 +214,110 @@ class DataTrainingArguments:
                     raise ValueError("`validation_file` should be a csv, a json or a txt file.")
 
 
+class RobertaForCustomMaskedLM(RobertaPreTrainedModel):
+    _keys_to_ignore_on_save = [r"lm_head.decoder.weight", r"lm_head.decoder.bias"]
+    _keys_to_ignore_on_load_missing = [r"position_ids", r"lm_head.decoder.weight", r"lm_head.decoder.bias"]
+    _keys_to_ignore_on_load_unexpected = [r"pooler"]
+
+    def __init__(self, config):
+        super().__init__(config)
+
+        if config.is_decoder:
+            logger.warning(
+                    "If you want to use `RobertaForMaskedLM` make sure `config.is_decoder=False` for "
+                    "bi-directional self-attention."
+                    )
+
+        self.roberta = RobertaModel(config)
+        self.lm_head = RobertaLMHead(config)
+        self.seq_relationship = nn.Linear(config.hidden_size, 3)
+        # self.custom_head = CustomPreTrainingHeads(config.hidden_size, self.lm_head)
+
+        # The LM head weights require special treatment only when they are tied with the word embeddings
+        self.update_keys_to_ignore(config, ["lm_head.decoder.weight"])
+
+        self.post_init()
+
+    def custom_head(self, sequence_output, pooled_output):
+        mlm_scores = self.lm_head(sequence_output)
+        seq_relationship_score = self.seq_relationship(pooled_output)
+
+        return mlm_scores, seq_relationship_score
+
+    def get_output_embeddings(self):
+        return self.lm_head.decoder
+
+    def set_output_embeddings(self, new_embeddings):
+        self.lm_head.decoder = new_embeddings
+
+    def forward(
+            self,
+            input_ids: Optional[torch.Tensor] = None,
+            attention_mask: Optional[torch.Tensor] = None,
+            token_type_ids: Optional[torch.Tensor] = None,
+            position_ids: Optional[torch.Tensor] = None,
+            head_mask: Optional[torch.Tensor] = None,
+            inputs_embeds: Optional[torch.Tensor] = None,
+            encoder_hidden_states: Optional[torch.FloatTensor] = None,
+            encoder_attention_mask: Optional[torch.FloatTensor] = None,
+            labels: Optional[torch.Tensor] = None,
+            drp_label: Optional[torch.Tensor] = None,
+            output_attentions: Optional[bool] = None,
+            output_hidden_states: Optional[bool] = None,
+            return_dict: Optional[bool] = None,
+            ) -> Union[Tuple[torch.Tensor], BertForPreTrainingOutput]:
+        r"""
+        labels (:obj:`torch.LongTensor` of shape :obj:`(batch_size, sequence_length)`, `optional`):
+            Labels for computing the masked language modeling loss. Indices should be in ``[-100, 0, ...,
+            config.vocab_size]`` (see ``input_ids`` docstring) Tokens with indices set to ``-100`` are ignored
+            (masked), the loss is only computed for the tokens with labels in ``[0, ..., config.vocab_size]``
+        kwargs (:obj:`Dict[str, any]`, optional, defaults to `{}`):
+            Used to hide legacy arguments that have been deprecated.
+        """
+        # return_dict = return_dict if return_dict is not None else self.config.use_return_dict
+
+        return_dict = return_dict if return_dict is not None else self.config.use_return_dict
+
+        outputs = self.roberta(
+                input_ids,
+                attention_mask=attention_mask,
+                token_type_ids=token_type_ids,
+                position_ids=position_ids,
+                head_mask=head_mask,
+                inputs_embeds=inputs_embeds,
+                encoder_hidden_states=encoder_hidden_states,
+                encoder_attention_mask=encoder_attention_mask,
+                output_attentions=output_attentions,
+                output_hidden_states=output_hidden_states,
+                return_dict=return_dict,
+
+                )
+
+        sequence_output, pooled_output = outputs[:2]
+        mlm_scores, seq_relationship_score = self.custom_head(sequence_output, pooled_output)
+
+        total_loss = None
+
+        if labels is not None and drp_label is not None:
+            loss_fct = CrossEntropyLoss()
+            masked_lm_loss = loss_fct(mlm_scores.view(-1, self.config.vocab_size), labels.view(-1))
+            seq_relationship_loss = loss_fct(seq_relationship_score.view(-1, 3), drp_label.view(-1))
+
+            total_loss = masked_lm_loss + seq_relationship_loss
+
+        if not return_dict:
+            output = (mlm_scores, seq_relationship_score) + outputs[2:]
+            return ((total_loss,) + output) if total_loss is not None else output
+
+        return BertForPreTrainingOutput(
+                loss=total_loss,
+                prediction_logits=mlm_scores,
+                seq_relationship_logits=seq_relationship_score,
+                hidden_states=outputs.hidden_states,
+                attentions=outputs.attentions,
+                )
+
+
 def main():
     # See all possible arguments in src/transformers/training_args.py
     # or by passing the --help flag to this script.
@@ -379,7 +483,7 @@ def main():
                 )
 
     if model_args.model_name_or_path:
-        model = RobertaForMaskedLM.from_pretrained(
+        model = RobertaForCustomMaskedLM.from_pretrained(
                 model_args.model_name_or_path,
                 from_tf=bool(".ckpt" in model_args.model_name_or_path),
                 config=config,
@@ -519,19 +623,21 @@ def main():
             if isinstance(logits, tuple):
                 # Depending on the model and config, logits may contain extra tensors,
                 # like past_key_values, but logits always come first
-                logits = logits[0]
-
-            return logits.argmax(dim=-1)
+                logits_mlm, logits_erp = logits[0], logits[1]
+            return logits_mlm.argmax(dim=-1), logits_erp.argmax(dim=-1)
 
         metric = load_metric("accuracy")
 
         def compute_metrics(eval_preds):
-            preds_mlm, labels_mlm = eval_preds
+            (preds_mlm, preds_erp), (labels_mlm, labels_erp) = eval_preds
             # preds have the same shape as the labels, after the argmax(-1) has been calculated
             # by preprocess_logits_for_metrics
 
             labels_mlm = labels_mlm.reshape(-1)
             preds_mlm = preds_mlm.reshape(-1)
+
+            labels_erp = labels_erp.reshape(-1)
+            preds_erp = preds_erp.reshape(-1)
 
             mask = labels_mlm != -100
             labels_mlm = labels_mlm[mask]
@@ -539,8 +645,11 @@ def main():
 
             logger.info(f"Labels MLM: {labels_mlm} ({labels_mlm.shape})")
             logger.info(f"Preds MLM: {preds_mlm} ({preds_mlm.shape})")
+            logger.info(f"Labels ERP: {labels_erp} ({labels_erp.shape})")
+            logger.info(f"Preds ERP: {preds_erp} ({preds_erp.shape})")
 
             eval_metric = metric.compute(predictions=preds_mlm, references=labels_mlm)
+            eval_metric["accuracy_erp"] = accuracy_score(y_true=labels_erp, y_pred=preds_erp)
 
             return eval_metric
 
