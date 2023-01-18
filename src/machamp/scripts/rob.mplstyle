@@ -1,0 +1,39 @@
+patch.linewidth: 0.5
+patch.facecolor: 348ABD  # blue
+patch.edgecolor: EEEEEE
+patch.antialiased: True
+
+font.size: 13.0
+
+axes.facecolor: f3f3f3
+axes.edgecolor: white
+axes.linewidth: 1
+axes.grid: True
+axes.titlesize: 18
+axes.labelsize: 18
+axes.labelcolor: 404040
+axes.axisbelow: True       # grid/ticks are below elements (e.g., lines, text)
+
+axes.prop_cycle: (cycler('color',['darkgreen', 'peru', 'FFB5B8', '348ABD', 'E0DE19', 'B73239']) +  cycler('linestyle',['-', '-', '-', '--', '--', '--']) + cycler('marker', ['P', 'o', 'D', 'P', 'o', 'D']) )
+
+
+text.color : 404040 
+legend.frameon : True
+legend.fancybox: True
+legend.edgecolor : b3b3b3
+legend.fontsize: 13
+
+xtick.color: 404040
+xtick.direction: out
+
+ytick.color: 404040
+ytick.direction: out
+
+grid.color: white
+grid.linestyle: -    # solid line
+
+figure.facecolor: white
+figure.edgecolor: 0.5
+
+legend.facecolor: white
+legend.framealpha:1.0

@@ -1,0 +1,15 @@
+{
+  "sayfullina": {
+    "train_data_path": "data/sayfullina/job_train.tsv",
+    "dev_data_path": "data/sayfullina/job_dev.tsv",
+    "sent_idxs": [
+      1,2
+    ],
+    "tasks": {
+      "ner": {
+        "task_type": "classification",
+        "column_idx": 0
+      }
+    }
+  }
+}

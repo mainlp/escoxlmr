@@ -1,0 +1,36 @@
+{
+  "house": {
+	"train_data_path": "data/skillspan/skillspan_house_train.conll",
+	"dev_data_path": "data/skillspan/skillspan_house_dev.conll",
+	"word_idx": 0,
+	"tasks": {
+	  "skills": {
+		"task_type": "seq_bio",
+		"column_idx": 1,
+		"metric": "span_f1"
+	  },
+	  "knowledge": {
+		"task_type": "seq_bio",
+		"column_idx": 2,
+		"metric": "span_f1"
+	  }
+	}
+  },
+  "tech": {
+	"train_data_path": "data/skillspan/skillspan_tech_train.conll",
+	"dev_data_path": "data/skillspan/skillspan_tech_dev.conll",
+	"word_idx": 0,
+	"tasks": {
+	  "skills": {
+		"task_type": "seq_bio",
+		"column_idx": 1,
+		"metric": "span_f1"
+	  },
+	  "knowledge": {
+		"task_type": "seq_bio",
+		"column_idx": 2,
+		"metric": "span_f1"
+	  }
+	}
+  }
+}

@@ -1,0 +1,28 @@
+{
+  "en": {
+	"train_data_path": "data/kompetencer/1_en_train.tsv",
+	"dev_data_path": "data/kompetencer/3_en_dev.tsv",
+	"sent_idxs": [
+	  0
+	],
+	"tasks": {
+	  "esco_classify": {
+		"task_type": "classification",
+		"column_idx": 1
+	  }
+	}
+  },
+  "da": {
+	"train_data_path": "data/kompetencer/2_da_train.tsv",
+	"dev_data_path": "data/kompetencer/3_en_dev.tsv",
+	"sent_idxs": [
+	  0
+	],
+	"tasks": {
+	  "esco_classify": {
+		"task_type": "classification",
+		"column_idx": 1
+	  }
+	}
+  }
+}
