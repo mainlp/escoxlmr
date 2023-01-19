@@ -31,7 +31,7 @@ Find in `src/machamp/escoxlmr/` all the scripts to fine-tune the model with Mach
 # Licensing
 ___
 
-This work is licensed under a Creative Commons Attribution 4.0 International License.
+This work is licensed under an Apache 2.0 License
 
 
 
