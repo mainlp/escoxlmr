@@ -231,8 +231,7 @@ class RobertaForCustomMaskedLM(RobertaPreTrainedModel):
         self.roberta = RobertaModel(config)
         self.lm_head = RobertaLMHead(config)
         self.seq_relationship = nn.Linear(config.hidden_size, 3)
-        # self.custom_head = CustomPreTrainingHeads(config.hidden_size, self.lm_head)
-
+        
         # The LM head weights require special treatment only when they are tied with the word embeddings
         self.update_keys_to_ignore(config, ["lm_head.decoder.weight"])
 
