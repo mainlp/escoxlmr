@@ -12,6 +12,10 @@ If you use this work please cite the following:
 <citation coming soon>
 ```
 
+# I just want to use the pre-trained model
+
+Our pre-trained model can be found on 🤗 https://huggingface.co/jjzha/esco-xlm-roberta-large
+
 # Getting Started
 
 ## Requirements
