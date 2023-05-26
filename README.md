@@ -6,10 +6,15 @@ __ESCOXLM-R: Multilingual Taxonomy-driven Pre-training for the Job Market Domain
 
 Mike Zhang, Rob van der Goot, and Barbara Plank. In ACL (2023).
 
-If you use this work please cite the following:
+If you use this work please cite the following (for now arXiv):
 
 ```
-<citation coming soon>
+@article{zhang2023escoxlm,
+  title={ESCOXLM-R: Multilingual Taxonomy-driven Pre-training for the Job Market Domain},
+  author={Zhang, Mike and van der Goot, Rob and Plank, Barbara},
+  journal={arXiv preprint arXiv:2305.12092},
+  year={2023}
+}
 ```
 
 # I just want to use the pre-trained model
